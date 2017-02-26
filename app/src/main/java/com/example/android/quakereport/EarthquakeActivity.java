@@ -19,13 +19,18 @@ import android.app.LoaderManager;
 import android.content.AsyncTaskLoader;
 import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,14 +42,20 @@ public class EarthquakeActivity extends AppCompatActivity implements LoaderManag
     private static final int EARTHQUAKE_LOADER_ID = 1;
 
     private EarthquakeAdapter mAdapter;
+    private TextView mEmptyView;
+    private ProgressBar mProgressBar;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.i(LOG_TAG, "OnCreate: Acticity is created");
         setContentView(R.layout.earthquake_activity);
 
         // Find a reference to the {@link ListView} in the layout
         ListView earthquakeListView = (ListView) findViewById(R.id.list);
+        mEmptyView = (TextView) findViewById(R.id.empty_view);
+        earthquakeListView.setEmptyView(mEmptyView);
+        mProgressBar = (ProgressBar) findViewById(R.id.loading_spinner);
 
         // Create a new {@link ArrayAdapter} of earthquakes
         mAdapter = new EarthquakeAdapter(this, new ArrayList<Earthquake>());
@@ -66,16 +77,55 @@ public class EarthquakeActivity extends AppCompatActivity implements LoaderManag
         });
 
         //new EarthquakeAsyncTask().execute(REQUEST_URL);
-        getLoaderManager().initLoader(EARTHQUAKE_LOADER_ID, null, this);
+        if (isNetworkConnected()) {
+            getLoaderManager().initLoader(EARTHQUAKE_LOADER_ID, null, this);
+        } else {
+            mProgressBar.setVisibility(View.GONE);
+            mEmptyView.setText(R.string.no_internet_connection);
+        }
+        Log.i(LOG_TAG, "InitLoader: Loader in initialized");
+    }
+
+    private boolean isNetworkConnected() {
+        ConnectivityManager cm = (ConnectivityManager)getApplicationContext().
+                getSystemService(Context.CONNECTIVITY_SERVICE);
+
+        NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+        boolean isConnected = activeNetwork != null &&
+                activeNetwork.isConnectedOrConnecting();
+
+        return isConnected;
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Log.i(LOG_TAG, "onStart: Activity is started");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.i(LOG_TAG, "onStop: Activity is stopped");
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.i(LOG_TAG, "onDestroy: Activity is destroyed");
     }
 
     @Override
     public android.content.Loader<List<Earthquake>> onCreateLoader(int id, Bundle args) {
+        Log.i(LOG_TAG, "OnCreateLoader: Loader in created");
         return new EarthquakeLoader(getApplicationContext(), REQUEST_URL);
     }
 
     @Override
     public void onLoadFinished(android.content.Loader<List<Earthquake>> loader, List<Earthquake> data) {
+        Log.i(LOG_TAG, "OnLoadFinished: called on LoadFinished");
+        mProgressBar.setVisibility(View.GONE);
+        mEmptyView.setText(R.string.no_earthquakes_found);
         mAdapter.clear();
         if (data != null && data.size() > 0) {
             mAdapter.addAll(data);
@@ -84,6 +134,7 @@ public class EarthquakeActivity extends AppCompatActivity implements LoaderManag
 
     @Override
     public void onLoaderReset(android.content.Loader<List<Earthquake>> loader) {
+        Log.i(LOG_TAG, "OnLoaderReset: Loader is reset");
         mAdapter.clear();
     }
 
@@ -97,11 +148,13 @@ public class EarthquakeActivity extends AppCompatActivity implements LoaderManag
 
         @Override
         protected void onStartLoading() {
+            Log.i(LOG_TAG, "onStartLoading: called earthquake loader onStartLoading");
             forceLoad();
         }
 
         @Override
         public List<Earthquake> loadInBackground() {
+            Log.i(LOG_TAG, "loadInBackground: called earthquake loader loadInBackground");
             if (TextUtils.isEmpty(mUrlString))  return null;
             return QueryUtils.fetchEarthquakeData(mUrlString);
         }
